@@ -11,3 +11,4 @@ This project is licensed under the [MIT License].
 ## References
 
 - [cryptopals](https://www.cryptopals.com/)
+- [Real-World Cryptography](https://www.manning.com/books/real-world-cryptography)
