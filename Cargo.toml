@@ -1,0 +1,13 @@
+[package]
+name = "cryptopals"
+version = "0.1.0"
+edition = "2024"
+authors = ["Huseen Munye"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/hmunye/cryptopals"
+description = """
+Solutions to the cryptopals cryptography challenges
+"""
+
+[dependencies]
