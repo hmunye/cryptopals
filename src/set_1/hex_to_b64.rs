@@ -26,8 +26,8 @@ pub fn hex_to_b64(input: &[u8]) -> String {
 
     let (chunks, remainder) = input.as_chunks::<2>();
 
-    for &[x, y] in chunks {
-        let byte = (utils::decode_hex(x) << 4) | utils::decode_hex(y);
+    for nibbles in chunks {
+        let byte = utils::decode_hex(*nibbles);
 
         let seq = if bits == 0 {
             rem = byte & 0x03;
@@ -63,7 +63,7 @@ pub fn hex_to_b64(input: &[u8]) -> String {
     }
 
     for &r in remainder {
-        out.push(LOOKUP_TABLE[utils::decode_hex(r) as usize]);
+        out.push(LOOKUP_TABLE[utils::decode_hex([0, r]) as usize]);
     }
 
     let padding = input.len() % 3;

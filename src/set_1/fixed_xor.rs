@@ -10,8 +10,8 @@ pub fn fixed_xor<const N: usize>(x: &[u8; N], y: &[u8; N]) -> Vec<u8> {
     }
 
     for i in (0..N - 1).step_by(2) {
-        let byte_x = (utils::decode_hex(x[i]) << 4) | utils::decode_hex(x[i + 1]);
-        let byte_y = (utils::decode_hex(y[i]) << 4) | utils::decode_hex(y[i + 1]);
+        let byte_x = utils::decode_hex([x[i], x[i + 1]]);
+        let byte_y = utils::decode_hex([y[i], y[i + 1]]);
 
         out.push(byte_x ^ byte_y);
     }

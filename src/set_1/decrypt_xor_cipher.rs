@@ -42,8 +42,8 @@ pub fn decrypt_xor_cipher(input: &[u8]) -> (Option<Metadata>, String) {
     if let Some(meta) = find_candidate_key(chunks) {
         let key = meta.key as u8;
 
-        for &[x, y] in chunks {
-            let byte = (utils::decode_hex(x) << 4) | utils::decode_hex(y);
+        for nibbles in chunks {
+            let byte = utils::decode_hex(*nibbles);
             out.push((byte ^ key) as char);
         }
 
@@ -60,8 +60,8 @@ fn find_candidate_key(chunks: &[[u8; 2]]) -> Option<Metadata> {
     for key in keyspace {
         let mut key_score: i32 = 0;
 
-        for &[x, y] in chunks {
-            let byte = (utils::decode_hex(x) << 4) | utils::decode_hex(y);
+        for nibbles in chunks {
+            let byte = utils::decode_hex(*nibbles);
             let i = byte ^ key;
 
             if i as usize >= SCORE_TABLE.len() {
