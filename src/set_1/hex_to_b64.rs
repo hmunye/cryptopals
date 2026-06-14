@@ -1,3 +1,5 @@
+use super::utils;
+
 /// Table listing the characters used for each numeric value, per [RFC 4648].
 ///
 /// [RFC 4648]: https://datatracker.ietf.org/doc/html/rfc4648#section-4
@@ -15,6 +17,7 @@ const LOOKUP_TABLE: &[char; 64] = &[
 /// characters to represent each 6-bit segment of a sequence of byte values.
 ///
 /// [`base64`]: https://en.wikipedia.org/wiki/Base64
+#[inline]
 #[must_use]
 pub fn hex_to_b64(input: &[u8]) -> String {
     let mut out = String::with_capacity(4 * input.len().div_ceil(6));
@@ -24,7 +27,7 @@ pub fn hex_to_b64(input: &[u8]) -> String {
     let (chunks, remainder) = input.as_chunks::<2>();
 
     for &[x, y] in chunks {
-        let byte = (decode_hex(x) << 4) | decode_hex(y);
+        let byte = (utils::decode_hex(x) << 4) | utils::decode_hex(y);
 
         let seq = if bits == 0 {
             rem = byte & 0x03;
@@ -60,23 +63,13 @@ pub fn hex_to_b64(input: &[u8]) -> String {
     }
 
     for &r in remainder {
-        out.push(LOOKUP_TABLE[decode_hex(r) as usize]);
+        out.push(LOOKUP_TABLE[utils::decode_hex(r) as usize]);
     }
 
     let padding = input.len() % 3;
     out.push_str(&"=".repeat(padding));
 
     out
-}
-
-#[inline]
-const fn decode_hex(byte: u8) -> u8 {
-    match byte {
-        b'0'..=b'9' => byte - b'0',
-        b'a'..=b'f' => byte - b'a' + 10,
-        b'A'..=b'F' => byte - b'A' + 10,
-        _ => unreachable!(),
-    }
 }
 
 #[cfg(test)]
