@@ -1,6 +1,6 @@
 use super::utils;
 
-/// Returns the `XOR` combination of the provided byte arrays.
+/// Returns the `XOR` combination of the provided hexadecimal byte arrays.
 #[inline]
 #[must_use]
 pub fn fixed_xor<const N: usize>(x: &[u8; N], y: &[u8; N]) -> Vec<u8> {

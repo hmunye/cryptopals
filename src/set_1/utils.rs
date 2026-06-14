@@ -8,4 +8,3 @@ pub const fn decode_hex(byte: u8) -> u8 {
         _ => unreachable!(),
     }
 }
-
