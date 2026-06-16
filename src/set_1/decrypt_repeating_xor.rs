@@ -6,7 +6,7 @@ pub struct Metadata {
     pub key: String,
 }
 
-/// Decrypts the given [`Base64`]-encoded cipher, which has encrypted with
+/// Decrypts the given [`Base64`]-encoded cipher, which has been encrypted with
 /// `repeating-key XOR`, returning a [`Metadata`] and plaintext pair.
 ///
 /// Returns `None` for `Metadata` when a key could not be found (e.g., empty
