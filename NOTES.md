@@ -30,6 +30,54 @@ same secret key and ciphertext to recover the original plaintext.
 Advanced Encryption Standard (`AES`) is an instance of a symmetric encryption 
 algorithm (cryptographic primitive).
 
+Offers three versions differing on key length: `AES-128`, `AES-192`, and `AES-256`.
+Longer keysize correlates to more __bit security__ (describes an upper bound, e.g., 
+brute-force attack over 2^128 operations).
+
+Encryption accepts a variable-length key and plaintext of 128-bit fixed-size, and 
+produces ciphertext of 128-bit fixed-size (referred to as a __block cipher__ since 
+plaintext is fixed-size). Decryption accepts the same key, ciphertext of 128-bit 
+fixed-size, and produces plaintext of 128-bit fixed-size (deterministic process).
+
+Block cipher with the corresponding key can be seen as a __permutation__: mapping 
+all the possible plaintexts to all the possible ciphertexts under a given key.
+AES behaves like a permutation randomized by key (__pseudorandom permutation__).
+
+During encryption, the state of the plaintext is viewed as a 4x4 matrix of bytes.
+A __round function__ (consisting of multiple sub-functions) is used iteratively 
+starting with the plaintext to transform the state and produce the ciphertext. 
+Each iteration uses a different __round key__ which is derived from the main key 
+(during a __key schedule__).
+
+Padding and a __mode of operation__ (defines how a block cipher is applied 
+iteratively to encrypt larger data) are used to encrypt plaintext that is not 
+128-bits in length. 
+
+`PKCS#7` padding is a popular mechanism which specifies the value of each padding 
+byte must be the length of the padding required.
+
+Electronic Code Book (`ECB`) mode of operation is a naive scheme which divides 
+plaintext into blocks of 16 bytes with possible padding, and processes each block 
+individually. This scheme is flawed in that the resulting ciphertext may have 
+repeating patterns; the structural information of the plaintext is leaked, given 
+that the same block of plaintext produces the same ciphertext.
+
+Cipher Block Chaining (`CBC`) mode of operation is more safe in that it "randomizes"
+the encryption. It uses a random initialization vector (IV) which is XORed with the
+first block of plaintext before encrypting. That resulting ciphertext is then XORed
+with the next block of plaintext before encrypting, etc. During decryption, the IV 
+is transmitted, which is fine since its randomness ensures no information about the
+plaintext is leaked.
+
+Counter (`CTR`) mode of operation works by using AES to encrypt a __nonce__ (number 
+used once) concatenated with a plain number (starting at 1) instead of plaintext. 
+The nonce serves the same purpose as an IV: allows randomization in encryption. The 
+nonce is required to be unique but not unpredictable. The resulting encrypted 
+16-byte block is referred to as a __keystream__, which is then XORed with the 
+plaintext to produce the ciphertext. It provides the property that no padding is 
+required as it turns a block cipher into a __stream cipher__.
+
+
 ## Asymmetric Cryptography
 
 Due to the difficulty in implementing secure __key distribution__ for symmetric
@@ -118,16 +166,16 @@ Uses a __compression function__: accepts two input arguments of length X and Y, 
 returns an output of length X or Y. 
 
 __Davies-Meyer__ used as the compression algorithm for SHA-2 which relies on a 
-__block cipher__ (cipher that encrypts a fixed-size block of data). The first input 
+block cipher (cipher that encrypts a fixed-size block of data). The first input 
 (block) is used as the key to a block cipher. The second input (intermediate) is 
 the data to be encrypted by the block cipher. The output block is the result of 
 XORing the intermediate with the output of the block cipher.
 
 Uses the __Merkle-Damgard__ construction: hashes the data by iteratively invoking 
 the compression function. Padding may be added to the input before being chunked 
-into block-sizes supported by the compression algorithm (e.g., `SHA-256` requires a 
-block size of 512-bits). The compression function is then iteratively applied to 
-the blocks, with its previous output used as the second argument. The initial 
+into block sizes supported by the compression algorithm (e.g., `SHA-256` requires a
+block size of 512-bits). The compression function is then iteratively applied to
+the blocks, with its previous output used as the second argument. The initial
 second argument is usually fixed and standardized.
 
 Vulnerable to a __length-extension attack__ if used to hash secrets: exploits the
@@ -146,7 +194,7 @@ In addition to the security properties provided by cryptographic hash functions 
 the security properties of SHA-2, SHA-3 is also able to hash secrets. Provides the 
 same variants of SHA-2, with a different naming scheme.
 
-Uses the __sponge__ construction, built on top of the `keccak-f` __permutation__: 
+Uses the __sponge__ construction, built on top of the `keccak-f` permutation: 
 function that maps an input to an output of the same size (unique and reversible).
 
 Input must be arbitrarily divided into a __rate__ and __capacity__. Capacity is 
@@ -173,7 +221,7 @@ who has observed arbitrarily many input-tag pairs should still be unable to prod
 a valid authentication tag for new inputs. They gain no computational advantage in
 producing valid tags without the secret key.
 
-Collisions occur when then same input, but different secret keys, produce the same
+Collisions occur when different inputs, using the same secret key, produce the same
 authentication tag. 128-bit authentication tags are generally used as they provide 
 enough collision resistance and require __online__ computation (since tags must be 
 requested).
@@ -195,6 +243,15 @@ the final digest (authentication tag).
 `KMAC` makes use of the cSHAKE `XOF`, unambiguously encoding the MAC key, input, and
 requested output space to be absorbed by cSHAKE.
 
+### GMAC
+
+MAC constructed from a keyed hash (`GHASH`). GHASH can be referred to as a 
+__difference unpredictable function__ (`DUF`). This function need not be collision
+resistant, making it significantly faster than other hash functions. A digest is
+produced from processing input in 16-byte blocks in a process similar to CBC mode.
+It can only be used as a __one-time MAC__, but in combination with `AES-CTR` and 
+a different key, can be used many times for producing authentication tags.
+
 ### SipHash
 
 `SipHash` is a MAC construction used primarily with __hash tables__. If a service 
@@ -205,3 +262,25 @@ function and control over the key can craft arbitrarily many inputs that collide
 degrading performance from O(1) amortized to O(N). SipHash with a random key is 
 used in place of the non-cryptographic hash function to add unpredictability in
 input collision.
+
+## Authenticated Encryption
+
+__Encryption algorithms__ (ciphers) provide confidentiality for one or more parties.
+
+Constructions which combine a secret key and plaintext to produce ciphertext. 
+__Decryption algorithms__ combine the ciphertext with the same secret key to 
+retrieve the original plaintext (symmetric encryption).
+
+Encryption algorithms (e.g., `AES-CBC`) lack the integrity mechanisms that prevent
+modification of the ciphertext and its parameters in-transit by adversaries. MACs
+can be used (e.g., `AES-CBC-HMAC`) to provide integrity by encrypting then producing
+the authentication tag over that ciphertext and its parameters. It is best practice 
+to use different keys for different cryptographic constructions.
+
+Modern authenticated encryption uses all-in-one constructions, or 
+__authenticated encryption with associated data__ (`AEAD`). `AES-GCM` 
+(__Galois/Counter Mode__) is the most widely used AEAD which uses `AES-CTR` with a 
+GMAC for highly performant encryption/decryption.
+
+`ChaCha20-Poly1305` is another AEAD which combines the `ChaCha20` stream cipher and
+`Poly1305` MAC.
