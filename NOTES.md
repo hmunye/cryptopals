@@ -130,7 +130,11 @@ block size of 512-bits). The compression function is then iteratively applied to
 the blocks, with its previous output used as the second argument. The initial 
 second argument is usually fixed and standardized.
 
-Vulnerable to a __length-extension attack__ if used to hash secrets.
+Vulnerable to a __length-extension attack__ if used to hash secrets: exploits the
+internals of Merkle-Damgard constructions, where the final digest also acts as 
+intermediate state. Given a digest, an adversary can concatenate arbitrary 
+additional data without knowing the original input. The compression function is
+re-invoked using the known digest as a starting state.
 
 ### SHA-3
 
@@ -153,3 +157,51 @@ XORing each block with the input of a permutation and permuting the __state__
 (intermediate output from previous operation) after each block is XORed. Ingesting 
 the input is referred to as __absorbing__ and producing the digest is referred to 
 as __squeezing__.
+
+## Message Authentication Code (`MAC`)
+
+Cryptographic primitive aimed at protecting the integrity of data 
+(__secret-key algorithm__).
+
+Accepts an input and secret key to produces an __authentication tag__. MAC is 
+deterministic: the same input and secret key pair produce the same authentication 
+tag. Without the secret key, it should be impossible to reproduce the same 
+authentication tag for a given input.
+
+The main security property of MACs are __existential unforgeability__: an adversary
+who has observed arbitrarily many input-tag pairs should still be unable to produce
+a valid authentication tag for new inputs. They gain no computational advantage in
+producing valid tags without the secret key.
+
+Collisions occur when then same input, but different secret keys, produce the same
+authentication tag. 128-bit authentication tags are generally used as they provide 
+enough collision resistance and require __online__ computation (since tags must be 
+requested).
+
+Vulnerable to __replay attacks__: adversary intercepts a valid message between 
+parties to be retransmitted at a later time, which is excepted by the recipient as
+a new valid message.
+
+### Hash-based Message Authentication Code (`HMAC`)
+
+MAC constructed using a hash function (e.g., SHA-2). Two keys are first created from 
+the secret key; `k1 = k ^ ipad` and `k2 = k ^ opad`, where `ipad` (inner padding) 
+and `opad` (outer padding) are constants. The input is concatenated with a key, 
+`k1`, to produce a digest, which is then concatenated with a key, `k2`, to produce 
+the final digest (authentication tag).
+
+### KMAC
+
+`KMAC` makes use of the cSHAKE `XOF`, unambiguously encoding the MAC key, input, and
+requested output space to be absorbed by cSHAKE.
+
+### SipHash
+
+`SipHash` is a MAC construction used primarily with __hash tables__. If a service 
+exposes a hash table which makes use of a non-cryptographic hash function, an 
+adversary can launch a denial-of-service (`DOS`) attack. Since the buckets a key 
+maps to are deterministic and public, an adversary with knowledge of the hash 
+function and control over the key can craft arbitrarily many inputs that collide, 
+degrading performance from O(1) amortized to O(N). SipHash with a random key is 
+used in place of the non-cryptographic hash function to add unpredictability in
+input collision.
