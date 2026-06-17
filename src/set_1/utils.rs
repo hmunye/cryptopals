@@ -1,28 +1,22 @@
-/// Table listing the characters used for each `Base64` numeric value, per
-/// [RFC 4648].
+/// Table listing the bytes used for each `Base64` numeric value, per [RFC 4648].
 ///
 /// [RFC 4648]: https://datatracker.ietf.org/doc/html/rfc4648#section-4
-const B64_TABLE: &[char; 64] = &[
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
-    'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
-    'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4',
-    '5', '6', '7', '8', '9', '+', '/',
-];
+const B64_TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-/// Converts the given hex-encoded byte slice to a [`Base64`]-encoded string. To
-/// indicate padding, `'='` bytes are appended to the output string.
+/// Converts the given hex-encoded byte slice into a [`Base64`]-encoded byte
+/// vector. To indicate padding, `'='` bytes are appended to the output.
 ///
 /// `Base64` is a binary-to-text encoding scheme that uses 64 printable
 /// characters to represent each 6-bit segment of a sequence of byte values.
 ///
 /// [`Base64`]: https://en.wikipedia.org/wiki/Base64
 #[must_use]
-pub fn hex_to_b64(input: &[u8]) -> String {
-    let mut out = String::with_capacity(4 * input.len().div_ceil(6));
+pub fn hex_to_b64(hex: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(4 * hex.len().div_ceil(6));
     let mut rem = 0;
     let mut bits = 0;
 
-    let (chunks, remainder) = input.as_chunks::<2>();
+    let (chunks, remainder) = hex.as_chunks::<2>();
 
     for nibbles in chunks {
         let byte = decode_hex(*nibbles);
@@ -64,22 +58,23 @@ pub fn hex_to_b64(input: &[u8]) -> String {
         out.push(B64_TABLE[decode_hex([0, r]) as usize]);
     }
 
-    let padding = input.len() % 3;
-    out.push_str(&"=".repeat(padding));
+    let padding = hex.len() % 3;
+    out.extend(std::iter::repeat_n(b'=', padding));
 
     out
 }
 
-/// Converts the given [`Base64`]-encoded input to a decoded raw byte vector.
+/// Converts the given [`Base64`]-encoded byte slice into its raw byte vector
+/// representation.
 ///
 /// [`Base64`]: https://en.wikipedia.org/wiki/Base64
 #[must_use]
-pub fn b64_to_bytes(input: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(3 * (input.len() / 4));
+pub fn b64_to_bytes(b64: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(3 * (b64.len() / 4));
     let mut buffer: u32 = 0;
     let mut bits: u32 = 0;
 
-    let (chunks, _) = input.as_chunks::<4>();
+    let (chunks, _) = b64.as_chunks::<4>();
 
     for chunk in chunks {
         for &b in chunk {
@@ -111,17 +106,55 @@ pub fn b64_to_bytes(input: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Encodes the given byte slice into a hexadecimal string representation.
+/// Encodes the given byte slice into its hexadecimal byte vector
+/// representation.
 #[inline]
 #[must_use]
-pub fn bytes_to_hex(input: &[u8]) -> String {
-    let mut out = String::with_capacity(input.len() * 2);
+pub fn bytes_to_hex(input: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(input.len() * 2);
 
     for &byte in input {
         let hex = encode_hex(byte);
 
-        out.push(hex[0] as char);
-        out.push(hex[1] as char);
+        out.push(hex[0]);
+        out.push(hex[1]);
+    }
+
+    out
+}
+
+/// Encodes the given byte into its hex-encoded byte array representation.
+#[inline]
+#[must_use]
+pub const fn encode_hex(byte: u8) -> [u8; 2] {
+    const fn encode(b: u8) -> u8 {
+        match b {
+            0..=9 => b + b'0',
+            10..=15 => b + b'a' - 10,
+            _ => unreachable!(),
+        }
+    }
+
+    [encode((byte & 0xF0) >> 4), encode(byte & 0xF)]
+}
+
+/// Decodes the given hex-encoded byte slice into its raw byte vector
+/// representation.
+///
+/// # Panics
+///
+/// Panics if input length is not divisible by 2.
+#[inline]
+#[must_use]
+pub fn hex_to_bytes(hex: &[u8]) -> Vec<u8> {
+    assert!(hex.len().is_multiple_of(2));
+
+    let mut out = Vec::with_capacity(hex.len() / 2);
+
+    let (chunks, _) = hex.as_chunks::<2>();
+
+    for &[x, y] in chunks {
+        out.push(decode_hex([x, y]));
     }
 
     out
@@ -143,69 +176,55 @@ pub const fn decode_hex(nibbles: [u8; 2]) -> u8 {
     (decode(nibbles[0]) << 4) | decode(nibbles[1])
 }
 
-/// Encodes the given byte into a hex-encoded byte array.
-#[inline]
-#[must_use]
-pub const fn encode_hex(byte: u8) -> [u8; 2] {
-    const fn encode(b: u8) -> u8 {
-        match b {
-            0..=9 => b + b'0',
-            10..=15 => b + b'a' - 10,
-            _ => unreachable!(),
-        }
-    }
-
-    [encode((byte & 0xF0) >> 4), encode(byte & 0xF)]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_hex_to_b64_empty() {
-        assert_eq!(hex_to_b64(b""), "");
+        assert_eq!(hex_to_b64(b""), b"");
     }
 
     #[test]
     fn test_b64_to_hex_empty() {
-        assert_eq!(bytes_to_hex(&b64_to_bytes(b"")), "");
+        assert_eq!(bytes_to_hex(&b64_to_bytes(b"")), b"");
     }
 
     #[test]
     fn test_hex_to_b64_sentence() {
         let input = b"5468697320697320612074657374";
-        assert_eq!(hex_to_b64(input), "VGhpcyBpcyBhIHRlc3Q=");
+        assert_eq!(hex_to_b64(input), b"VGhpcyBpcyBhIHRlc3Q=");
     }
 
     #[test]
     fn test_b64_to_hex_sentence() {
         assert_eq!(
             bytes_to_hex(&b64_to_bytes(b"VGhpcyBpcyBhIHRlc3Q=")),
-            "5468697320697320612074657374"
+            b"5468697320697320612074657374"
         );
     }
 
     #[test]
     fn test_hex_to_b64_all_bytes_sequence() {
         let input = b"00010203040506070809";
-        assert_eq!(hex_to_b64(input), "AAECAwQFBgcICQ==");
+        assert_eq!(hex_to_b64(input), b"AAECAwQFBgcICQ==");
     }
 
     #[test]
     fn test_b64_to_hex_all_bytes_sequence() {
         assert_eq!(
             bytes_to_hex(&b64_to_bytes(b"AAECAwQFBgcICQ==")),
-            "00010203040506070809"
+            b"00010203040506070809"
         );
     }
 
+    // Challenge 1-1
     #[test]
     fn test_hex_to_b64_no_padding() {
         let input = b"49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d";
         assert_eq!(
             hex_to_b64(input),
-            "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
+            b"SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
         );
     }
 
@@ -215,47 +234,47 @@ mod tests {
             bytes_to_hex(&b64_to_bytes(
                 b"SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
             )),
-            "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d"
+            b"49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d"
         );
     }
 
     #[test]
     fn test_hex_to_b64_one_byte() {
-        assert_eq!(hex_to_b64(b"66"), "Zg==");
+        assert_eq!(hex_to_b64(b"66"), b"Zg==");
     }
 
     #[test]
     fn test_b64_to_hex_one_byte() {
-        assert_eq!(bytes_to_hex(&b64_to_bytes(b"Zg==")), "66");
+        assert_eq!(bytes_to_hex(&b64_to_bytes(b"Zg==")), b"66");
     }
 
     #[test]
     fn test_hex_to_b64_two_bytes() {
-        assert_eq!(hex_to_b64(b"666f"), "Zm8=");
+        assert_eq!(hex_to_b64(b"666f"), b"Zm8=");
     }
 
     #[test]
     fn test_b64_to_hex_two_bytes() {
-        assert_eq!(bytes_to_hex(&b64_to_bytes(b"Zm8=")), "666f");
+        assert_eq!(bytes_to_hex(&b64_to_bytes(b"Zm8=")), b"666f");
     }
 
     #[test]
     fn test_hex_to_b64_three_bytes() {
-        assert_eq!(hex_to_b64(b"666f6f"), "Zm9v");
+        assert_eq!(hex_to_b64(b"666f6f"), b"Zm9v");
     }
 
     #[test]
     fn test_b64_to_hex_three_bytes() {
-        assert_eq!(bytes_to_hex(&b64_to_bytes(b"Zm9v")), "666f6f");
+        assert_eq!(bytes_to_hex(&b64_to_bytes(b"Zm9v")), b"666f6f");
     }
 
     #[test]
     fn test_hex_to_b64_four_bytes() {
-        assert_eq!(hex_to_b64(b"666f6f66"), "Zm9vZg==");
+        assert_eq!(hex_to_b64(b"666f6f66"), b"Zm9vZg==");
     }
 
     #[test]
     fn test_b64_to_hex_four_bytes() {
-        assert_eq!(bytes_to_hex(&b64_to_bytes(b"Zm9vZg==")), "666f6f66");
+        assert_eq!(bytes_to_hex(&b64_to_bytes(b"Zm9vZg==")), b"666f6f66");
     }
 }

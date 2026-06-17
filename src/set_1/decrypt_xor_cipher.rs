@@ -2,10 +2,9 @@ use super::utils;
 
 /// Table mapping bytes to their corresponding weighted score.
 ///
-/// Control character (0-31, 127) are treated as a penalty, contributing -1 to
-/// the score. Characters "etaoin shrdlu" are weighted in descending order
-/// (14-2) based on most-frequent. All other printable ASCII characters
-/// contribute 1 to the score.
+/// Control character (0-31, 127) are penalized, contributing -1 to the score.
+/// Characters "etaoin shrdlu" are weighted in descending order (14-2) based on
+/// frequency. All other printable ASCII characters contribute 1 to the score.
 const W_SCORE_TABLE: [i32; 128] = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, 8, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -17,72 +16,53 @@ const W_SCORE_TABLE: [i32; 128] = [
 /// Decryption metadata for `single-key XOR`.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub struct Metadata {
-    pub key: char,
+    pub key: u8,
     pub score: i32,
 }
 
-/// Decrypts the given hex-encoded cipher, which has been XOR'd against a single
-/// byte, returning a [`Metadata`] and plaintext pair.
+/// Decrypts the given hex-encoded ciphertext, which has been XOR'd against a
+/// single byte, returning a [`Metadata`] and plaintext pair, or `None` if a key
+/// could not be found (e.g., empty input).
 ///
-/// A brute-force approach is used, enumerating the full keyspace `0x00..=0xFF`,
+/// Brute-force approach is used, enumerating the full keyspace `0x00..=0xFF`,
 /// and scoring each candidate key based on the frequency of characters.
-///
-/// Returns `None` for `Metadata` when a key could not be found (e.g., empty
-/// input).
-///
-/// # Panics
-///
-/// Panics if `input.len()` is not divisible by 2.
 #[inline]
 #[must_use]
-pub fn decrypt_hex_xor_cipher(input: &[u8]) -> (Option<Metadata>, String) {
-    let (chunks, remainder) = input.as_chunks::<2>();
-    assert!(remainder.is_empty());
-
-    let bytes: Vec<u8> = chunks
-        .iter()
-        .map(|nibbles| utils::decode_hex(*nibbles))
-        .collect();
-
-    decrypt_xor_cipher(&bytes)
+pub fn decrypt_hex_xor_cipher(hex: &[u8]) -> Option<(Metadata, Vec<u8>)> {
+    decrypt_xor_cipher(&utils::hex_to_bytes(hex))
 }
 
-/// Decrypts the given encrypted cipher, which has been XOR'd against a single
-/// byte, returning a [`Metadata`] and plaintext pair.
+/// Decrypts the given ciphertext, which has been XOR'd against a single byte,
+/// returning a [`Metadata`] and plaintext pair, or `None` if a key could not be
+/// found (e.g., empty input).
 ///
-/// A brute-force approach is used, enumerating the full keyspace `0x00..=0xFF`,
+/// Brute-force approach is used, enumerating the full keyspace `0x00..=0xFF`,
 /// and scoring each candidate key based on the frequency of characters.
-///
-/// Returns `None` for `Metadata` when a key could not be found (e.g., empty
-/// input).
 #[must_use]
-pub fn decrypt_xor_cipher(input: &[u8]) -> (Option<Metadata>, String) {
-    let mut out = String::new();
-    if input.is_empty() {
-        return (None, out);
+pub fn decrypt_xor_cipher(ciphertext: &[u8]) -> Option<(Metadata, Vec<u8>)> {
+    if ciphertext.is_empty() {
+        return None;
     }
 
-    if let Some(meta) = find_candidate_key(input) {
-        let key = meta.key as u8;
+    let mut out = Vec::with_capacity(ciphertext.len());
 
-        for &b in input {
-            out.push((b ^ key) as char);
+    find_candidate_metadata(ciphertext).map(|meta| {
+        for &b in ciphertext {
+            out.push(b ^ meta.key);
         }
 
-        (Some(meta), out)
-    } else {
-        (None, out)
-    }
+        (meta, out)
+    })
 }
 
-fn find_candidate_key(bytes: &[u8]) -> Option<Metadata> {
+fn find_candidate_metadata(ciphertext: &[u8]) -> Option<Metadata> {
     let mut meta: Option<Metadata> = None;
     let keyspace = 0x00..=0xFF;
 
     for k in keyspace {
         let mut key_score: i32 = 0;
 
-        for b in bytes {
+        for b in ciphertext {
             let i = b ^ k;
 
             if i as usize >= W_SCORE_TABLE.len() {
@@ -97,7 +77,7 @@ fn find_candidate_key(bytes: &[u8]) -> Option<Metadata> {
 
         if key_score > m.score {
             m.score = key_score;
-            m.key = k as char;
+            m.key = k;
         }
     }
 
@@ -113,20 +93,19 @@ mod tests {
 
     #[test]
     fn test_decrypt_xor_cipher_empty() {
-        let (meta, plaintext) = decrypt_xor_cipher(b"");
-
-        assert_eq!(meta, None);
-        assert_eq!(plaintext, "");
+        assert!(decrypt_xor_cipher(b"").is_none());
     }
 
+    // Challenge 1-3
     #[test]
     fn test_decrypt_xor_cipher_basic() {
         let (meta, plaintext) = decrypt_hex_xor_cipher(
             b"1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736",
-        );
+        )
+        .unwrap();
 
-        assert_eq!(meta.unwrap().key, 'X');
-        assert_eq!(plaintext, "Cooking MC's like a pound of bacon");
+        assert_eq!(meta.key, b'X');
+        assert_eq!(plaintext, b"Cooking MC's like a pound of bacon");
     }
 
     // Challenge 1-4
@@ -135,28 +114,27 @@ mod tests {
         let file = fs::File::open("encrypted_single_xor.txt").unwrap();
         let reader = io::BufReader::new(file);
 
-        let mut candidate: Option<(Metadata, String)> = None;
+        let mut candidate: Option<(Metadata, Vec<u8>)> = None;
 
         for line in reader.lines() {
             let line = line.unwrap();
             let bytes = line.as_bytes();
 
-            let (metadata, plaintext) = decrypt_hex_xor_cipher(bytes);
-            if let Some(mut meta) = metadata {
-                // Normalize the score for the given bytes, so longer sequences
-                // are not weighted more than shorter ones.
-                meta.score /= (bytes.len() / 2) as i32;
+            let (mut meta, plaintext) = decrypt_hex_xor_cipher(bytes).unwrap();
 
-                let c = candidate.get_or_insert_default();
-                if meta.score > c.0.score {
-                    *c = (meta, plaintext);
-                }
+            // Normalize the score for the given bytes, so longer sequences are
+            // not weighted more than shorter ones.
+            meta.score /= (bytes.len() / 2) as i32;
+
+            let c = candidate.get_or_insert_default();
+            if meta.score > c.0.score {
+                *c = (meta, plaintext);
             }
         }
 
         let candidate = candidate.unwrap();
 
-        assert_eq!(candidate.0.key, '5');
-        assert_eq!(candidate.1, "Now that the party is jumping\n");
+        assert_eq!(candidate.0.key, b'5');
+        assert_eq!(candidate.1, b"Now that the party is jumping\n");
     }
 }

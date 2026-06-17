@@ -12,3 +12,5 @@ This project is licensed under the [MIT License].
 
 - [cryptopals](https://www.cryptopals.com/)
 - [Real-World Cryptography](https://www.manning.com/books/real-world-cryptography)
+- [AES Key Schedule](https://en.wikipedia.org/wiki/AES_key_schedule)
+- [FIPS 197](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197-upd1.pdf)
