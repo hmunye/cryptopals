@@ -2,6 +2,21 @@
 
 Solutions to the [cryptopals](https://www.cryptopals.com/) cryptography challenges.
 
+## Quick Start
+
+```bash
+cargo build --release
+```
+
+```bash
+usage:
+      target/release/cryptopals -s <set> -c <challenge>
+options:
+   -s, --set            set containing the challenge.
+   -c, --challenge      challenge to execute.
+   -h, --help           print this summary.
+```
+
 ## License
 
 This project is licensed under the [MIT License].

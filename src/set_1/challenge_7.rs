@@ -1,9 +1,31 @@
-use core::arch::x86_64::{
+use std::arch::x86_64::{
     __m128i, _mm_aesdec_si128, _mm_aesdeclast_si128, _mm_aesenc_si128, _mm_aesenclast_si128,
     _mm_aesimc_si128, _mm_aeskeygenassist_si128, _mm_loadu_si128, _mm_shuffle_epi32,
     _mm_slli_si128, _mm_storeu_si128, _mm_xor_si128,
 };
-use core::mem::{self, MaybeUninit};
+use std::mem::{self, MaybeUninit};
+use std::{fs, str};
+
+use crate::utils;
+
+pub fn run() {
+    let encrypted = fs::read("encrypted_aes_ecb.txt").unwrap();
+
+    let plaintext = decrypt_aes_ecb_128(&utils::b64_to_bytes(&encrypted), b"YELLOW SUBMARINE");
+
+    let output = str::from_utf8(&plaintext).unwrap();
+    assert_eq!(
+        output,
+        "I'm back and I'm ringin' the bell \nA rockin' on the mike while the fly girls yell \nIn ecstasy in the back of me \nWell that's my DJ Deshay cuttin' all them Z's \nHittin' hard and the girlies goin' crazy \nVanilla's on the mike, man I'm not lazy. \n\nI'm lettin' my drug kick in \nIt controls my mouth and I begin \nTo just let it flow, let my concepts go \nMy posse's to the side yellin', Go Vanilla Go! \n\nSmooth 'cause that's the way I will be \nAnd if you don't give a damn, then \nWhy you starin' at me \nSo get off 'cause I control the stage \nThere's no dissin' allowed \nI'm in my own phase \nThe girlies sa y they love me and that is ok \nAnd I can dance better than any kid n' play \n\nStage 2 -- Yea the one ya' wanna listen to \nIt's off my head so let the beat play through \nSo I can funk it up and make it sound good \n1-2-3 Yo -- Knock on some wood \nFor good luck, I like my rhymes atrocious \nSupercalafragilisticexpialidocious \nI'm an effect and that you can bet \nI can take a fly girl and make her wet. \n\nI'm like Samson -- Samson to Delilah \nThere's no denyin', You can try to hang \nBut you'll keep tryin' to get my style \nOver and over, practice makes perfect \nBut not if you're a loafer. \n\nYou'll get nowhere, no place, no time, no girls \nSoon -- Oh my God, homebody, you probably eat \nSpaghetti with a spoon! Come on and say it! \n\nVIP. Vanilla Ice yep, yep, I'm comin' hard like a rhino \nIntoxicating so you stagger like a wino \nSo punks stop trying and girl stop cryin' \nVanilla Ice is sellin' and you people are buyin' \n'Cause why the freaks are jockin' like Crazy Glue \nMovin' and groovin' trying to sing along \nAll through the ghetto groovin' this here song \nNow you're amazed by the VIP posse. \n\nSteppin' so hard like a German Nazi \nStartled by the bases hittin' ground \nThere's no trippin' on mine, I'm just gettin' down \nSparkamatic, I'm hangin' tight like a fanatic \nYou trapped me once and I thought that \nYou might have it \nSo step down and lend me your ear \n'89 in my time! You, '90 is my year. \n\nYou're weakenin' fast, YO! and I can tell it \nYour body's gettin' hot, so, so I can smell it \nSo don't be mad and don't be sad \n'Cause the lyrics belong to ICE, You can call me Dad \nYou're pitchin' a fit, so step back and endure \nLet the witch doctor, Ice, do the dance to cure \nSo come up close and don't be square \nYou wanna battle me -- Anytime, anywhere \n\nYou thought that I was weak, Boy, you're dead wrong \nSo come on, everybody and sing this song \n\nSay -- Play that funky music Say, go white boy, go white boy go \nplay that funky music Go white boy, go white boy, go \nLay down and boogie and play that funky music till you die. \n\nPlay that funky music Come on, Come on, let me hear \nPlay that funky music white boy you say it, say it \nPlay that funky music A little louder now \nPlay that funky music, white boy Come on, Come on, Come on \nPlay that funky music \n"
+    );
+
+    crate::print_challenge(
+        7,
+        "AES in ECB mode",
+        &["file: encrypted_aes_ecb.txt"],
+        &[output],
+    );
+}
 
 /// Table of precomputed `rcon` constants for [`AES-128`] key schedule algorithm
 /// (10 rounds).
@@ -57,6 +79,7 @@ macro_rules! aes_round_key {
 /// [`AES-ECB`]: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
 /// [`PKCS#7`]: https://en.wikipedia.org/wiki/PKCS_7
 #[must_use]
+#[allow(unused)]
 pub fn encrypt_aes_ecb_128(plaintext: &[u8], key: &[u8; 16]) -> Vec<u8> {
     let mut ciphertext = Vec::with_capacity(((plaintext.len() / 16) + 1) * 16);
     let mut buffer = [0u8; 16];
@@ -184,9 +207,8 @@ fn key_schedule_128(key: &[u8; 16]) -> [__m128i; 11] {
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::fs;
 
-    use super::{super::utils, *};
+    use super::*;
 
     #[test]
     fn test_encrypt_aes_ecb_test_vector_1() {
@@ -253,18 +275,6 @@ mod tests {
         assert_eq!(
             utils::bytes_to_hex(&ciphertext[..16]),
             b"7b0c785e27e8ad3f8223207104725dd4"
-        );
-    }
-
-    // Challenge 1-7
-    #[test]
-    fn test_decrypt_aes_ecb_file() {
-        let encrypted = fs::read("encrypted_aes_ecb.txt").unwrap();
-        let plaintext = decrypt_aes_ecb_128(&utils::b64_to_bytes(&encrypted), b"YELLOW SUBMARINE");
-
-        assert_eq!(
-            plaintext,
-            b"I'm back and I'm ringin' the bell \nA rockin' on the mike while the fly girls yell \nIn ecstasy in the back of me \nWell that's my DJ Deshay cuttin' all them Z's \nHittin' hard and the girlies goin' crazy \nVanilla's on the mike, man I'm not lazy. \n\nI'm lettin' my drug kick in \nIt controls my mouth and I begin \nTo just let it flow, let my concepts go \nMy posse's to the side yellin', Go Vanilla Go! \n\nSmooth 'cause that's the way I will be \nAnd if you don't give a damn, then \nWhy you starin' at me \nSo get off 'cause I control the stage \nThere's no dissin' allowed \nI'm in my own phase \nThe girlies sa y they love me and that is ok \nAnd I can dance better than any kid n' play \n\nStage 2 -- Yea the one ya' wanna listen to \nIt's off my head so let the beat play through \nSo I can funk it up and make it sound good \n1-2-3 Yo -- Knock on some wood \nFor good luck, I like my rhymes atrocious \nSupercalafragilisticexpialidocious \nI'm an effect and that you can bet \nI can take a fly girl and make her wet. \n\nI'm like Samson -- Samson to Delilah \nThere's no denyin', You can try to hang \nBut you'll keep tryin' to get my style \nOver and over, practice makes perfect \nBut not if you're a loafer. \n\nYou'll get nowhere, no place, no time, no girls \nSoon -- Oh my God, homebody, you probably eat \nSpaghetti with a spoon! Come on and say it! \n\nVIP. Vanilla Ice yep, yep, I'm comin' hard like a rhino \nIntoxicating so you stagger like a wino \nSo punks stop trying and girl stop cryin' \nVanilla Ice is sellin' and you people are buyin' \n'Cause why the freaks are jockin' like Crazy Glue \nMovin' and groovin' trying to sing along \nAll through the ghetto groovin' this here song \nNow you're amazed by the VIP posse. \n\nSteppin' so hard like a German Nazi \nStartled by the bases hittin' ground \nThere's no trippin' on mine, I'm just gettin' down \nSparkamatic, I'm hangin' tight like a fanatic \nYou trapped me once and I thought that \nYou might have it \nSo step down and lend me your ear \n'89 in my time! You, '90 is my year. \n\nYou're weakenin' fast, YO! and I can tell it \nYour body's gettin' hot, so, so I can smell it \nSo don't be mad and don't be sad \n'Cause the lyrics belong to ICE, You can call me Dad \nYou're pitchin' a fit, so step back and endure \nLet the witch doctor, Ice, do the dance to cure \nSo come up close and don't be square \nYou wanna battle me -- Anytime, anywhere \n\nYou thought that I was weak, Boy, you're dead wrong \nSo come on, everybody and sing this song \n\nSay -- Play that funky music Say, go white boy, go white boy go \nplay that funky music Go white boy, go white boy, go \nLay down and boogie and play that funky music till you die. \n\nPlay that funky music Come on, Come on, let me hear \nPlay that funky music white boy you say it, say it \nPlay that funky music A little louder now \nPlay that funky music, white boy Come on, Come on, Come on \nPlay that funky music \n"
         );
     }
 }

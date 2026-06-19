@@ -1,4 +1,24 @@
-use super::utils;
+use std::str;
+
+use crate::utils;
+
+pub fn run() {
+    let input = "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736";
+
+    let (meta, plaintext) = decrypt_xor_cipher(&utils::hex_to_bytes(input.as_bytes())).unwrap();
+    assert_eq!(meta.key, b'X');
+    assert_eq!(plaintext, b"Cooking MC's like a pound of bacon");
+
+    crate::print_challenge(
+        3,
+        "Single-byte XOR cipher",
+        &[input],
+        &[
+            &format!("key: {:?}", meta.key as char),
+            &format!("plaintext: {}", str::from_utf8(&plaintext).unwrap()),
+        ],
+    );
+}
 
 /// Table mapping bytes to their corresponding weighted score.
 ///
@@ -18,18 +38,6 @@ const W_SCORE_TABLE: [i32; 128] = [
 pub struct Metadata {
     pub key: u8,
     pub score: i32,
-}
-
-/// Decrypts the given hex-encoded ciphertext, which has been XOR'd against a
-/// single byte, returning a [`Metadata`] and plaintext pair, or `None` if a key
-/// could not be found (e.g., empty input).
-///
-/// Brute-force approach is used, enumerating the full keyspace `0x00..=0xFF`,
-/// and scoring each candidate key based on the frequency of characters.
-#[inline]
-#[must_use]
-pub fn decrypt_hex_xor_cipher(hex: &[u8]) -> Option<(Metadata, Vec<u8>)> {
-    decrypt_xor_cipher(&utils::hex_to_bytes(hex))
 }
 
 /// Decrypts the given ciphertext, which has been XOR'd against a single byte,
@@ -82,59 +90,4 @@ fn find_candidate_metadata(ciphertext: &[u8]) -> Option<Metadata> {
     }
 
     meta
-}
-
-#[cfg(test)]
-mod tests {
-    use std::fs;
-    use std::io::{self, BufRead};
-
-    use super::*;
-
-    #[test]
-    fn test_decrypt_xor_cipher_empty() {
-        assert!(decrypt_xor_cipher(b"").is_none());
-    }
-
-    // Challenge 1-3
-    #[test]
-    fn test_decrypt_xor_cipher_basic() {
-        let (meta, plaintext) = decrypt_hex_xor_cipher(
-            b"1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736",
-        )
-        .unwrap();
-
-        assert_eq!(meta.key, b'X');
-        assert_eq!(plaintext, b"Cooking MC's like a pound of bacon");
-    }
-
-    // Challenge 1-4
-    #[test]
-    fn test_decrypt_xor_cipher_file() {
-        let file = fs::File::open("encrypted_single_xor.txt").unwrap();
-        let reader = io::BufReader::new(file);
-
-        let mut candidate: Option<(Metadata, Vec<u8>)> = None;
-
-        for line in reader.lines() {
-            let line = line.unwrap();
-            let bytes = line.as_bytes();
-
-            let (mut meta, plaintext) = decrypt_hex_xor_cipher(bytes).unwrap();
-
-            // Normalize the score for the given bytes, so longer sequences are
-            // not weighted more than shorter ones.
-            meta.score /= (bytes.len() / 2) as i32;
-
-            let c = candidate.get_or_insert_default();
-            if meta.score > c.0.score {
-                *c = (meta, plaintext);
-            }
-        }
-
-        let candidate = candidate.unwrap();
-
-        assert_eq!(candidate.0.key, b'5');
-        assert_eq!(candidate.1, b"Now that the party is jumping\n");
-    }
 }

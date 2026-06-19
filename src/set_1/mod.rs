@@ -1,8 +1,8 @@
-pub mod aes_ecb;
-pub mod decrypt_repeating_xor;
-pub mod decrypt_xor_cipher;
-pub mod detect_aes;
-pub mod fixed_xor;
-pub mod repeating_xor;
-
-pub mod utils;
+pub mod challenge_1;
+pub mod challenge_2;
+pub mod challenge_3;
+pub mod challenge_4;
+pub mod challenge_5;
+pub mod challenge_6;
+pub mod challenge_7;
+pub mod challenge_8;
