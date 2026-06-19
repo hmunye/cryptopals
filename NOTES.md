@@ -32,29 +32,31 @@ algorithm (cryptographic primitive).
 
 Offers three versions differing on key length: `AES-128`, `AES-192`, and `AES-256`.
 Longer keysize correlates to more __bit security__ (describes an upper bound, e.g., 
-brute-force attack over 2^128 operations).
+brute-force attack over 2^128 operations for AES-128).
 
-Encryption accepts a variable-length key and plaintext of 128-bit fixed-size, and 
-produces ciphertext of 128-bit fixed-size (referred to as a __block cipher__ since 
-plaintext is fixed-size). Decryption accepts the same key, ciphertext of 128-bit 
-fixed-size, and produces plaintext of 128-bit fixed-size (deterministic process).
+Encryption accepts a key and plaintext of a 128-bit fixed-size, and produces 
+ciphertext of a 128-bit fixed-size (referred to as a __block cipher__ since 
+plaintext and ciphertext are fixed-sizes). Decryption accepts the same key and
+ciphertext of a 128-bit fixed-size, and recovers the plaintext of a 128-bit 
+fixed-size (deterministic process).
 
 Block cipher with the corresponding key can be seen as a __permutation__: mapping 
 all the possible plaintexts to all the possible ciphertexts under a given key.
 AES behaves like a permutation randomized by key (__pseudorandom permutation__).
 
-During encryption, the state of the plaintext is viewed as a 4x4 matrix of bytes.
-A __round function__ (consisting of multiple sub-functions) is used iteratively 
-starting with the plaintext to transform the state and produce the ciphertext. 
-Each iteration uses a different __round key__ which is derived from the main key 
-(during a __key schedule__).
+AES represents blocks as a 4x4 matrix of bytes (column-major). A __round function__ 
+(consisting of multiple sub-functions) is used iteratively starting with the 
+plaintext to transform the state and produce the ciphertext. Each iteration uses a 
+different __round key__ which is derived from the secret key (__key schedule__ 
+algorithm).
 
-Padding and a __mode of operation__ (defines how a block cipher is applied 
-iteratively to encrypt larger data) are used to encrypt plaintext that is not 
-128-bits in length. 
+Padding and __mode of operation__ (defines how a block cipher is applied iteratively 
+to encrypt larger data) are used to encrypt plaintext that is not 128-bits in 
+length. 
 
-`PKCS#7` padding is a popular mechanism which specifies the value of each padding 
-byte must be the length of the padding required.
+`PKCS#7` padding scheme is a popular mechanism which specifies the value of each 
+padding byte must be the length of the padding required. If the plaintext length is 
+a multiple of 16, a full block of padding is appended.
 
 Electronic Code Book (`ECB`) mode of operation is a naive scheme which divides 
 plaintext into blocks of 16 bytes with possible padding, and processes each block 
@@ -66,8 +68,8 @@ Cipher Block Chaining (`CBC`) mode of operation is more safe in that it "randomi
 the encryption. It uses a random initialization vector (IV) which is XORed with the
 first block of plaintext before encrypting. That resulting ciphertext is then XORed
 with the next block of plaintext before encrypting, etc. During decryption, the IV 
-is transmitted, which is fine since its randomness ensures no information about the
-plaintext is leaked.
+is transmitted as cleartext, which is fine since its randomness ensures no 
+information about the plaintext is leaked.
 
 Counter (`CTR`) mode of operation works by using AES to encrypt a __nonce__ (number 
 used once) concatenated with a plain number (starting at 1) instead of plaintext. 
@@ -98,14 +100,52 @@ Instance of an asymmetric cryptographic primitive, used for __key exchange__.
 Key exchange algorithms establish a common secret between two parties, which can be
 used for different purposes (e.g., key to symmetric encryption primitive). 
 
-Each party first agrees to a set of common, public parameters, then generate their 
-own private keys (never shared). Each private key is combined with the common 
-parameters to produce public keys (always shared). Public keys are then exchanged, 
-allowing for each party to combine the others public key with their private key to 
-produce the final shared secret.
+Built on-top of the mathematical field __group theory__. A __group__ is a set of
+elements and a specific binary operation applied on that set, which require the
+following properties:
+
+- __Closure__: Operations on any two elements produces an element within the same 
+  group.
+
+- __Associativity__: The way in which elements are ordered when operated on does 
+  not affect the produced element.
+
+- __Identity Element__: Operations with this element do not change the result of
+  the other operand (e.g., `1` in a multiplicative group)
+
+- __Inverse Element__: Element which is an inverse to all other group elements.
+
+DH works with a __Galois__ group (additional __commutativity__ property) and 
+__modular multiplication__ as the defined binary operation. It is comprised of 
+the set of strictly positive integers: `1, 2, 3, 4, ..., p - 1`, where `p` is a 
+relatively large prime number and 1 is the identity element.
+
+Security of the algorithm relies on the __discrete logarithm problem__ in a group.
+The larger the prime number, the harder it is to solve for the discrete logarithm
+of a specific group element of a specific base.
+
+Each party first agrees to a set of common public parameters (prime number `p` and 
+generator, or base, `g`), then generate their own private keys (random number `x`). 
+Each private key, `x`,  is combined with the common parameters (`g^x mod p`) to 
+produce public keys. Public keys are then exchanged, allowing for each party to 
+combine the others public key with their private key to produce the final shared 
+secret.
 
 Vulnerable to a __man-in-the-middle__ (`MITM`) attack. Each party accepts any 
 public key received as being generated by the other, without verification.
+
+### Elliptic Curve Diffie-Hellman (`ECDH`)
+
+Works with groups made from __elliptic curves__: defined by the coordinates `x` and
+`y` which solve an equation (most practical curves simplify to 
+__short Weierstrass equation__).
+
+Properties needed include: an elliptic curve equation that defines a set of valid
+points, a definition of the addition operator for the group, and an imaginary point
+(__point of infinity__).
+
+Generally used, standardized curves, include: `P-256`, `P-521`, `Curve25519`, and
+`Curve448`. Combination of ECDH and Curve25519 is referred to as `X25519`.
 
 ### RSA
 
@@ -284,3 +324,15 @@ GMAC for highly performant encryption/decryption.
 
 `ChaCha20-Poly1305` is another AEAD which combines the `ChaCha20` stream cipher and
 `Poly1305` MAC.
+
+## Key Exchanges
+
+Key exchanges allow parties to establish a shared secret over a public channel 
+without ever communicating the secret itself.
+
+Key generation algorithm produces a key pair (public/private). Public keys are 
+meant to be shared between all parties in cleartext. A public key from one party can 
+then be combined with the receivers private key to produce a shared secret.
+
+Unauthenticated key exchanges are vulnerable to MITM attacks. An adversary can
+impersonate both sides of the connection and perform two separate key exchanges.

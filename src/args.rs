@@ -103,7 +103,7 @@ const PROGRAM_FLAGS: &[Flag] = &[
 
 fn print_usage(program: &str) -> ! {
     eprintln!("\x1b[1;1musage:\x1b[0m");
-    eprintln!("      {program} -s <set> -c <challenge>");
+    eprintln!("   {program} -s <set> -c <challenge>");
     eprintln!("\x1b[1;1moptions:\x1b[0m");
 
     for flag in PROGRAM_FLAGS {

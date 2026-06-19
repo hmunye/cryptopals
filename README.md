@@ -10,7 +10,7 @@ cargo build --release
 
 ```bash
 usage:
-      target/release/cryptopals -s <set> -c <challenge>
+   target/debug/cryptopals -s <set> -c <challenge>
 options:
    -s, --set            set containing the challenge.
    -c, --challenge      challenge to execute.
