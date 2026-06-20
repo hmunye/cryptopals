@@ -119,16 +119,11 @@ pub fn encrypt_aes_ecb_128(plaintext: &[u8], key: &[u8; 16]) -> Vec<u8> {
     // [b03, b07, b11, b15]
     // ```
     let (blocks, remainder) = plaintext.as_chunks::<{ BLOCK_SIZE }>();
-    let padding = BLOCK_SIZE - remainder.len();
-
     for block in blocks {
         encrypt_block(block);
     }
 
-    let mut final_block = [padding as u8; 16];
-    final_block[..remainder.len()].copy_from_slice(remainder);
-
-    encrypt_block(&final_block);
+    encrypt_block(&utils::with_pkcs7_padding::<{ BLOCK_SIZE }>(remainder));
 
     ciphertext
 }
@@ -173,14 +168,12 @@ pub fn decrypt_aes_ecb_128(ciphertext: &[u8], key: &[u8; 16]) -> Vec<u8> {
     };
 
     let (blocks, _) = ciphertext.as_chunks::<{ BLOCK_SIZE }>();
-
     for block in blocks {
         decrypt_block(block);
     }
 
-    // Truncate any padding bytes added using `PKCS#7`.
+    // Truncate any padding bytes added following `PKCS#7`.
     plaintext.truncate(plaintext.len() - plaintext[plaintext.len() - 1] as usize);
-
     plaintext
 }
 

@@ -171,6 +171,19 @@ pub const fn decode_hex(nibbles: [u8; 2]) -> u8 {
     (decode(nibbles[0]) << 4) | decode(nibbles[1])
 }
 
+/// Returns a new block of size `N`, padded using the [`PKCS#7`] scheme.
+///
+/// [`PKCS#7`]: https://en.wikipedia.org/wiki/PKCS_7
+#[inline]
+#[must_use]
+pub fn with_pkcs7_padding<const N: usize>(block: &[u8]) -> [u8; N] {
+    let padding = N - block.len();
+    let mut padded = [padding as u8; N];
+
+    padded[..block.len()].copy_from_slice(block);
+    padded
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

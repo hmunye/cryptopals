@@ -6,6 +6,7 @@
 
 mod args;
 mod set_1;
+mod set_2;
 mod utils;
 
 pub fn print_challenge(ch: u8, title: &str, inputs: &[&str], outputs: &[&str]) {
@@ -22,16 +23,19 @@ pub fn print_challenge(ch: u8, title: &str, inputs: &[&str], outputs: &[&str]) {
     }
 }
 
-const CHALLENGES: &[&[fn()]] = &[&[
-    set_1::challenge_1::run,
-    set_1::challenge_2::run,
-    set_1::challenge_3::run,
-    set_1::challenge_4::run,
-    set_1::challenge_5::run,
-    set_1::challenge_6::run,
-    set_1::challenge_7::run,
-    set_1::challenge_8::run,
-]];
+const CHALLENGES: &[&[fn()]] = &[
+    &[
+        set_1::challenge_1::run,
+        set_1::challenge_2::run,
+        set_1::challenge_3::run,
+        set_1::challenge_4::run,
+        set_1::challenge_5::run,
+        set_1::challenge_6::run,
+        set_1::challenge_7::run,
+        set_1::challenge_8::run,
+    ],
+    &[set_2::challenge_1::run],
+];
 
 fn main() {
     let args = args::Args::parse();
