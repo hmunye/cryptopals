@@ -34,7 +34,7 @@ const CHALLENGES: &[&[fn()]] = &[
         set_1::challenge_7::run,
         set_1::challenge_8::run,
     ],
-    &[set_2::challenge_1::run],
+    &[set_2::challenge_1::run, set_2::challenge_2::run],
 ];
 
 fn main() {

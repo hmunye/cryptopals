@@ -1,17 +1,17 @@
 use std::arch::x86_64::{
-    __m128i, _mm_aesdec_si128, _mm_aesdeclast_si128, _mm_aesenc_si128, _mm_aesenclast_si128,
-    _mm_aesimc_si128, _mm_aeskeygenassist_si128, _mm_loadu_si128, _mm_shuffle_epi32,
-    _mm_slli_si128, _mm_storeu_si128, _mm_xor_si128,
+    _mm_aesdec_si128, _mm_aesdeclast_si128, _mm_aesenc_si128, _mm_aesenclast_si128,
+    _mm_aesimc_si128, _mm_loadu_si128, _mm_storeu_si128, _mm_xor_si128,
 };
-use std::mem::{self, MaybeUninit};
 use std::{fs, str};
 
+use crate::set_1::challenge_7::{AES_BLOCK_SIZE, aes_key_schedule_128};
 use crate::utils;
 
 pub fn run() {
-    let encrypted = fs::read("encrypted_aes_ecb.txt").unwrap();
+    let encrypted = fs::read("encrypted_aes_cbc.txt").unwrap();
+    let iv = [0x00; 16];
 
-    let plaintext = decrypt_aes_ecb_128(&utils::b64_to_bytes(&encrypted), b"YELLOW SUBMARINE");
+    let plaintext = decrypt_aes_cbc_128(&utils::b64_to_bytes(&encrypted), b"YELLOW SUBMARINE", &iv);
 
     let output = str::from_utf8(&plaintext).unwrap();
     assert_eq!(
@@ -20,73 +20,32 @@ pub fn run() {
     );
 
     crate::print_challenge(
-        7,
-        "AES in ECB mode",
-        &["file: encrypted_aes_ecb.txt"],
+        2,
+        "Implement CBC mode",
+        &["file: encrypted_aes_cbc.txt"],
         &[output],
     );
 }
 
-/// [`AES`] block size in bytes.
-///
-/// [`AES`]: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
-pub const AES_BLOCK_SIZE: usize = 16;
-
-/// Table of precomputed `rcon` constants for [`AES-128`] key schedule algorithm
-/// (10 rounds).
-///
-/// [`AES-128`]: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
-const RCON_TABLE: [i32; 10] = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36];
-
-/// Expands a 128-bit [`AES`] round key to the next round key using `AES-NI` key
-/// schedule assist.
-///
-/// [`AES`]: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
-#[macro_export]
-macro_rules! aes_round_key {
-    ($key:expr, $round:expr) => {{
-        // Only the upper 32-bits of assist are used for `AES-128` key
-        // schedule.
-        //
-        // Intel Intrinsics Guide (_mm_aeskeygenassist_si128):
-        //
-        // ```
-        // assist[0..=31]   = SubWord($key[32..=63])
-        // assist[32..=63]  = RotWord(SubWord($key[32..=63])) XOR RCON
-        // assist[64..=95]  = SubWord($key[96..=127])
-        // assist[96..=127] = RotWord(SubWord($key[96..=127])) XOR RCON
-        // ```
-        let assist = _mm_aeskeygenassist_si128::<{ RCON_TABLE[$round] }>($key);
-
-        // Both shifts transform the given round key (previous) so that only
-        // a single XOR with `assist` is required to produce the next round
-        // key.
-        let mut t = _mm_xor_si128($key, _mm_slli_si128::<4>($key));
-        t = _mm_xor_si128(t, _mm_slli_si128::<8>(t));
-
-        // Broadcast the top 32-bits of `assist` using the selector mask
-        // 0xFF, which is XORed with the transformed round key.
-        _mm_xor_si128(t, _mm_shuffle_epi32::<0xFF>(assist))
-    }};
-}
-
-/// Encrypts the given plaintext using [`AES-ECB`] with the provided 128-bit
-/// key, returning the ciphertext.
+/// Encrypts the given plaintext using [`AES-CBC`] with the provided 128-bit
+/// key and IV, returning the ciphertext.
 ///
 /// Padding bytes are added using the [`PKCS#7`] scheme.
 ///
-/// [`AES-ECB`]: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
+/// [`AES-CBC`]: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
 /// [`PKCS#7`]: https://en.wikipedia.org/wiki/PKCS_7
 #[must_use]
 #[allow(unused)]
-pub fn encrypt_aes_ecb_128(plaintext: &[u8], key: &[u8; 16]) -> Vec<u8> {
+pub fn encrypt_aes_cbc_128(plaintext: &[u8], key: &[u8; 16], iv: &[u8; AES_BLOCK_SIZE]) -> Vec<u8> {
     let mut ciphertext = Vec::with_capacity(((plaintext.len() / 16) + 1) * 16);
-    let mut buffer = [0u8; AES_BLOCK_SIZE];
+    let mut buffer = *iv;
 
     let round_keys = aes_key_schedule_128(key);
 
     let mut encrypt_block = |block: &[u8; 16]| unsafe {
         let v = _mm_loadu_si128(block.as_ptr().cast());
+        // XOR with the previously encrypted block (or with IV).
+        let v = _mm_xor_si128(v, _mm_loadu_si128(buffer.as_ptr().cast()));
 
         // `AddRoundKey`: XOR-based key whitening (initially mixes plaintext
         // with key to add dependency).
@@ -127,17 +86,22 @@ pub fn encrypt_aes_ecb_128(plaintext: &[u8], key: &[u8; 16]) -> Vec<u8> {
     ciphertext
 }
 
-/// Decrypts the given ciphertext encrypted with [`AES-ECB`] using the provided
-/// 128-bit key, returning the plaintext.
+/// Decrypts the given ciphertext encrypted with [`AES-CBC`] using the
+/// provided 128-bit key and IV, returning the plaintext.
 ///
 /// Padding bytes are truncated following the [`PKCS#7`] scheme.
 ///
-/// [`AES-ECB`]: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
+/// [`AES-CBC`]: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
 /// [`PKCS#7`]: https://en.wikipedia.org/wiki/PKCS_7
 #[must_use]
-pub fn decrypt_aes_ecb_128(ciphertext: &[u8], key: &[u8; 16]) -> Vec<u8> {
+pub fn decrypt_aes_cbc_128(
+    ciphertext: &[u8],
+    key: &[u8; 16],
+    iv: &[u8; AES_BLOCK_SIZE],
+) -> Vec<u8> {
     let mut plaintext = Vec::with_capacity(((ciphertext.len() / 16) + 1) * 16);
     let mut buffer = [0u8; AES_BLOCK_SIZE];
+    let mut prev = unsafe { _mm_loadu_si128(iv.as_ptr().cast()) };
 
     let round_keys = aes_key_schedule_128(key);
 
@@ -158,10 +122,14 @@ pub fn decrypt_aes_ecb_128(ciphertext: &[u8], key: &[u8; 16]) -> Vec<u8> {
 
         _mm_storeu_si128(
             buffer.as_mut_ptr().cast(),
+            // XOR with the previously encrypted block (or with IV).
+            //
             // `InvShiftRows` + `InvSubBytes` + `AddRoundKey` (single
             // `AESDECLAST` instruction).
-            _mm_aesdeclast_si128(w, round_keys[0]),
+            _mm_xor_si128(prev, _mm_aesdeclast_si128(w, round_keys[0])),
         );
+
+        _mm_storeu_si128(&raw mut prev, v);
 
         plaintext.extend(buffer);
     };
@@ -174,100 +142,4 @@ pub fn decrypt_aes_ecb_128(ciphertext: &[u8], key: &[u8; 16]) -> Vec<u8> {
     // Truncate any padding bytes added following `PKCS#7`.
     plaintext.truncate(plaintext.len() - plaintext[plaintext.len() - 1] as usize);
     plaintext
-}
-
-#[must_use]
-pub fn aes_key_schedule_128(key: &[u8; 16]) -> [__m128i; 11] {
-    let mut round_keys = [const { MaybeUninit::<__m128i>::uninit() }; 11];
-
-    round_keys[0] = unsafe { MaybeUninit::new(_mm_loadu_si128(key.as_ptr().cast())) };
-    round_keys[1] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[0].assume_init(), 0)) };
-    round_keys[2] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[1].assume_init(), 1)) };
-    round_keys[3] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[2].assume_init(), 2)) };
-    round_keys[4] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[3].assume_init(), 3)) };
-    round_keys[5] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[4].assume_init(), 4)) };
-    round_keys[6] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[5].assume_init(), 5)) };
-    round_keys[7] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[6].assume_init(), 6)) };
-    round_keys[8] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[7].assume_init(), 7)) };
-    round_keys[9] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[8].assume_init(), 8)) };
-    round_keys[10] = unsafe { MaybeUninit::new(aes_round_key!(round_keys[9].assume_init(), 9)) };
-
-    // SAFETY: `round_keys` has the same size and memory-layout as the return
-    // type. Each slot is initialized prior to returning from this function.
-    unsafe { mem::transmute(round_keys) }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::convert::TryInto;
-
-    use super::*;
-
-    #[test]
-    fn test_encrypt_aes_ecb_test_vector_1() {
-        let key = utils::hex_to_bytes(b"2b7e151628aed2a6abf7158809cf4f3c")
-            .try_into()
-            .unwrap();
-
-        let ciphertext = encrypt_aes_ecb_128(
-            &utils::hex_to_bytes(b"6bc1bee22e409f96e93d7e117393172a"),
-            &key,
-        );
-
-        assert_eq!(
-            utils::bytes_to_hex(&ciphertext[..16]),
-            b"3ad77bb40d7a3660a89ecaf32466ef97"
-        );
-    }
-
-    #[test]
-    fn test_encrypt_aes_ecb_test_vector_2() {
-        let key = utils::hex_to_bytes(b"2b7e151628aed2a6abf7158809cf4f3c")
-            .try_into()
-            .unwrap();
-
-        let ciphertext = encrypt_aes_ecb_128(
-            &utils::hex_to_bytes(b"ae2d8a571e03ac9c9eb76fac45af8e51"),
-            &key,
-        );
-
-        assert_eq!(
-            utils::bytes_to_hex(&ciphertext[..16]),
-            b"f5d3d58503b9699de785895a96fdbaaf"
-        );
-    }
-
-    #[test]
-    fn test_encrypt_aes_ecb_test_vector_3() {
-        let key = utils::hex_to_bytes(b"2b7e151628aed2a6abf7158809cf4f3c")
-            .try_into()
-            .unwrap();
-
-        let ciphertext = encrypt_aes_ecb_128(
-            &utils::hex_to_bytes(b"30c81c46a35ce411e5fbc1191a0a52ef"),
-            &key,
-        );
-
-        assert_eq!(
-            utils::bytes_to_hex(&ciphertext[..16]),
-            b"43b1cd7f598ece23881b00e3ed030688"
-        );
-    }
-
-    #[test]
-    fn test_encrypt_aes_ecb_test_vector_4() {
-        let key = utils::hex_to_bytes(b"2b7e151628aed2a6abf7158809cf4f3c")
-            .try_into()
-            .unwrap();
-
-        let ciphertext = encrypt_aes_ecb_128(
-            &utils::hex_to_bytes(b"f69f2445df4f9b17ad2b417be66c3710"),
-            &key,
-        );
-
-        assert_eq!(
-            utils::bytes_to_hex(&ciphertext[..16]),
-            b"7b0c785e27e8ad3f8223207104725dd4"
-        );
-    }
 }
