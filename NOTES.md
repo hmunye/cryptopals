@@ -154,6 +154,26 @@ Algorithm named after Ron Rivest, Adi Shamir, and Leonard Adleman (`RSA`).
 Consists of two different primitives: public key encryption algorithm 
 (asymmetric encryption) and a (digital) signature scheme.
 
+For key generation: two large prime numbers (`p` and `q`) are generated, a public
+exponent (`e`) is chosen, derive a public key from the exponent and public modulus
+(`N` = `p * q`), and derive the private key (`d` = `e^-1 mod (p - 1) (q - 1)`).
+
+For asymmetric encryption, plaintext is encrypted using the public key 
+(`plaintext^e mod N`), and decrypted using the private key, public modulus, and 
+ciphertext (`ciphertext^d mod N`).
+
+Security of the algorithm relies on the __factorization problem__. Without `p` and
+`q`, no one can compute the order of the multiplicative group used, meaning the 
+private key `d` cannot be computed.
+
+### RSA-OAEP
+
+__Textbook RSA__ is insecure by default for many reasons, including being vulnerable
+to the __million message attack__ when used with the `PKCS#1 v1.5` padding scheme.
+
+PKCS#1 v2.2 (__Optimal Asymmetric Encryption Padding__ (`OAEP`)) is not vulnerable 
+to the million message attack, making it a strong standard to use with RSA.
+
 ## Digital Signatures
 
 Cryptographic primitive used to ensure the integrity and authenticity of data, 
@@ -336,3 +356,23 @@ then be combined with the receivers private key to produce a shared secret.
 
 Unauthenticated key exchanges are vulnerable to MITM attacks. An adversary can
 impersonate both sides of the connection and perform two separate key exchanges.
+
+## Asymmetric/Hybrid Encryption
+
+Asymmetric encryption requires a __key generation algorithm__ and security 
+parameters to produce a key pair. 
+
+Can be used to perform a key exchange. One party generates a symmetric key and 
+encrypts it with another parties public key 
+(__key encapsulation mechanism__ (`KEM`)). This encapsulated key is transmitted to 
+the relevant party, which can decrypt it using their private key to obtain the 
+symmetric key (e.g., `RSA`).
+
+Hybrid encryption is used when the length of plaintext allowed in asymmetric 
+encryption is too limiting (combination of asymmetric and authenticated symmetric 
+cryptographic primitives). 
+
+### ECIES
+
+__Elliptic Curve Integrated Encryption Scheme__ is a widely adopted hybrid 
+encryption scheme, specified to be used with ephemeral ECDH.
