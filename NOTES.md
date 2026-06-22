@@ -144,7 +144,7 @@ Properties needed include: an elliptic curve equation that defines a set of vali
 points, a definition of the addition operator for the group, and an imaginary point
 (__point of infinity__).
 
-Generally used, standardized curves, include: `P-256`, `P-521`, `Curve25519`, and
+Generally used standardized curves, include: `P-256`, `P-521`, `Curve25519`, and
 `Curve448`. Combination of ECDH and Curve25519 is referred to as `X25519`.
 
 ### RSA
@@ -376,3 +376,33 @@ cryptographic primitives).
 
 __Elliptic Curve Integrated Encryption Scheme__ is a widely adopted hybrid 
 encryption scheme, specified to be used with ephemeral ECDH.
+
+## Signatures and Zero-knowledge Proofs
+
+Signatures are use to authenticate the origin and integrity of a message.
+
+Signature schemes generally consist of three algorithms: key generation algorithm,
+signing algorithm, and verifying algorithm.
+
+Web `PKI` (__public key infrastructure__) uses cryptographic signatures and relies 
+on the transitivity of trust. Browsers trust authorities to certify that domains 
+are actually linked to the public keys they share. The browser can verify this by
+verifying the corresponding signature from an authority.
+
+Interactive zero-knowledge proof protocol consist of a __witness__ (the secret the 
+`prover` knows), a nonce or __blinding factor__ (randomness added to the witness so 
+it remains hidden to the `verifier`), and a challenge, or randomness added by the 
+`verifier` after receiving the `prover`'s __commitment__ (witness + blinding factor). 
+Challenge ensures the `prover` know the witness and does not just use a pre-computed 
+commitment (__Schnorr identification protocol__).
+
+__Fiat-Shamir heuristic__ reduces the overhead and delay of interactive ZKPs by 
+requiring the prover to instead compute the challenge in a way they cant control.
+The computed challenge is the digest of all the messages sent and received as part 
+of the protocol (__transcript__). 
+
+Signatures are derived from non-interactive zero-knowledge protocols (e.g., 
+__Schnorr signature scheme__).
+
+`ECDSA` (__Elliptic Curve Digital Signature Algorithm__) and `EdDSA` 
+(__Edwards-curve Digital Signature Algorithm__) are used for digital signatures.
